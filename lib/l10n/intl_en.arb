@@ -1,0 +1,57 @@
+{
+  "signUpTitle": "Sign up for {nameOfTheApp}",
+  "@signUpTitle": {
+    "description": "The title people see when they open the app for the first time.",
+    "placeholders": {
+      "nameOfTheApp": {
+        "type": "String",
+        "example": "Impetus"
+      }
+    }
+  },
+  "loginTitle": "Log into your {nameOfTheApp} account",
+  "@loginTitle": {
+    "description": "The title people see when they open the log in screen",
+    "placeholders": {
+      "nameOfTheApp": {
+        "type": "String",
+        "example": "Impetus"
+      }
+    }
+  },
+  "signUpSubtitle": "Create a profile, follow other accounts, make your own {videoCount, plural, =0{no petitions} =1{petition} other{petitions}}, and more.",
+  "emailPasswordButton": "Use email & password",
+  "appleButton": "Continue with Apple",
+  "alreadyHaveAnAccount": "Already have an account?",
+  "logIn": "Log in {gender, select, male{sir} female{madam} other{human}}.",
+  "likeCount": "{potato}",
+  "@likeCount": {
+    "description": "Anything you want",
+    "placeholders": {
+      "potato": {
+        "type": "int",
+        "format": "compact"
+      }
+    }
+  },
+  "commentCount": "{potato}",
+  "@commentCount": {
+    "description": "Anything you want",
+    "placeholders": {
+      "potato": {
+        "type": "int",
+        "format": "compact"
+      }
+    }
+  },
+  "commentTitle": "{value} {value2, plural, =1{comment} other{comments}}",
+  "@commentTitle": {
+    "description": "Anything you want",
+    "placeholders": {
+      "value": {
+        "type": "int",
+        "format": "compact"
+      }
+    }
+  }
+}
