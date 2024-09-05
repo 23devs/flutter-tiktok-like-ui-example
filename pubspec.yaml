@@ -49,8 +49,6 @@ dependencies:
 
   permission_handler: ^11.3.1
 
-  gallery_saver: 2.3.2
-
   image_picker: ^1.1.2
 
   provider: ^6.1.2
@@ -63,6 +61,7 @@ dependencies:
   firebase_storage: ^11.2.2
   cloud_functions: ^4.3.3
   firebase_messaging: ^14.6.5
+  gallery_saver_plus: ^3.0.1
 
 dev_dependencies:
   flutter_test:

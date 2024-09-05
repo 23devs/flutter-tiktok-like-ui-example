@@ -383,14 +383,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  gallery_saver:
+  gallery_saver_plus:
     dependency: "direct main"
     description:
-      name: gallery_saver
-      sha256: df8b7e207ca12d64c71e0710a7ee3bc48aa7206d51cc720716fedb1543a66712
+      name: gallery_saver_plus
+      sha256: b9f88540c0e5f40a71bcf32f8d9b200d1334b7281a9be7b88c0c2945b738e5e0
       url: "https://pub.dev"
     source: hosted
-    version: "2.3.2"
+    version: "3.0.1"
   go_router:
     dependency: "direct main"
     description:
