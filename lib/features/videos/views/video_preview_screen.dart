@@ -1,21 +1,20 @@
 import 'dart:io';
 
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:gallery_saver_plus/gallery_saver.dart';
-import 'package:video_player/video_player.dart';
+//import 'package:video_player/video_player.dart';
 
 import '../view_models/upload_video_view_model.dart';
 
 class VideoPreviewScreen extends ConsumerStatefulWidget {
-  final XFile video;
+  final File videoPreview;
   final bool isPicked;
 
   const VideoPreviewScreen({
     super.key,
-    required this.video,
+    required this.videoPreview,
     required this.isPicked,
   });
 
@@ -24,41 +23,44 @@ class VideoPreviewScreen extends ConsumerStatefulWidget {
 }
 
 class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
-  late final VideoPlayerController _videoPlayerController;
+  //late final VideoPlayerController _videoPlayerController;
   bool _savedVideo = false;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
-  Future<void> _initVideo() async {
-    _videoPlayerController = VideoPlayerController.file(
-      File(widget.video.path),
-    );
+  // Future<void> _initVideo() async {
+  //   print('init video');
+  //   print(widget.videoPreview.path);
 
-    await _videoPlayerController.initialize();
-    await _videoPlayerController.setLooping(true);
-    await _videoPlayerController.setVolume(0);
-    // await _videoPlayerController.play();
+  //   _videoPlayerController = VideoPlayerController.file(
+  //     widget.videoPreview,
+  //   );
 
-    setState(() {});
-  }
+  //   await _videoPlayerController.initialize();
+  //   await _videoPlayerController.setLooping(true);
+  //   await _videoPlayerController.setVolume(0);
+  //   await _videoPlayerController.play();
 
-  @override
-  void initState() {
-    super.initState();
-    _initVideo();
-  }
+  //   setState(() {});
+  // }
 
-  @override
-  void dispose() {
-    _videoPlayerController.dispose();
-    super.dispose();
-  }
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   _initVideo();
+  // }
+
+  // @override
+  // void dispose() {
+  //   _videoPlayerController.dispose();
+  //   super.dispose();
+  // }
 
   Future<void> _saveToGallery() async {
     if (_savedVideo) return;
 
     await GallerySaver.saveVideo(
-      widget.video.path,
+      widget.videoPreview.path,
       albumName: "Impetus test",
     );
 
@@ -69,7 +71,7 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
 
   void _onUploadPressed() async {
     ref.read(uploadVideoProvider.notifier).uploadVideo(
-          File(widget.video.path),
+          widget.videoPreview,
           _titleController.text,
           _descriptionController.text,
           context,
@@ -102,31 +104,32 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
           )
         ],
       ),
-      body: _videoPlayerController.value.isInitialized
-          ? Stack(children: [
-              VideoPlayer(_videoPlayerController),
-              Column(
-                children: [
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Title',
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.7),
-                    ),
-                    controller: _titleController,
-                  ),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Description',
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.7),
-                    ),
-                    controller: _descriptionController,
-                  ),
-                ],
-              ),
-            ])
-          : null,
+      body:
+          //_videoPlayerController.value.isInitialized
+          //? Stack(children: [
+          //VideoPlayer(_videoPlayerController),
+          Column(
+        children: [
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Title',
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.7),
+            ),
+            controller: _titleController,
+          ),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Description',
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.7),
+            ),
+            controller: _descriptionController,
+          ),
+        ],
+      ),
+      //])
+      //: null,
     );
   }
 }

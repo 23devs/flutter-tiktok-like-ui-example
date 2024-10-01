@@ -1,10 +1,14 @@
+// ignore_for_file: avoid_print
+
 import 'dart:io';
 
+import 'package:path/path.dart' as path;
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:image_picker/image_picker.dart';
+//import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+//import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:impetus_test/constants/gaps.dart';
 import 'package:impetus_test/constants/sizes.dart';
@@ -25,6 +29,7 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   bool _hasPermission = false;
   List<String> _deniedPermissions = [];
   bool _isSelfieMode = false;
+  bool _isRecording = false;
   double _maximumZoomLevel = 0.0;
   double _minimumZoomLevel = 0.0;
   double _currentZoomLevel = 0.0;
@@ -49,7 +54,7 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
     upperBound: 1.0,
   );
 
-  late FlashMode _flashMode;
+  // late FlashMode _flashMode;
   late CameraController _cameraController;
 
   @override
@@ -105,19 +110,9 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
 
     _cameraController = CameraController(
       cameras[_isSelfieMode ? 1 : 0],
-      ResolutionPreset.ultraHigh,
+      ResolutionPreset.high,
       enableAudio: false,
     );
-
-    await _cameraController.initialize();
-
-    await _cameraController.prepareForVideoRecording(); // for IOS
-
-    _flashMode = _cameraController.value.flashMode;
-    _maximumZoomLevel = await _cameraController.getMaxZoomLevel();
-    _minimumZoomLevel = await _cameraController.getMinZoomLevel();
-
-    setState(() {});
   }
 
   Future<void> initPermissions() async {
@@ -148,28 +143,36 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
     setState(() {});
   }
 
-  Future<void> _setFlashMode(FlashMode newFlashMode) async {
-    await _cameraController.setFlashMode(newFlashMode);
-    _flashMode = newFlashMode;
-    setState(() {});
-  }
+  // Future<void> _setFlashMode(FlashMode newFlashMode) async {
+  //   await _cameraController.setFlashMode(newFlashMode);
 
-  Future<void> _starRecording(TapDownDetails _) async {
-    if (_cameraController.value.isRecordingVideo) return;
+  //   // setState(() {
+  //   //   _flashMode = newFlashMode;
+  //   // });
+  // }
 
-    await _cameraController.startVideoRecording();
+  // Future<void> _startRecording() async {
+  //   if (_cameraController.value.isRecordingVideo) return;
 
-    _buttonAnimationController.forward();
-    _progressAnimationController.forward();
-  }
+  //   await _cameraController.startVideoRecording();
+
+  //   _buttonAnimationController.forward();
+  //   _progressAnimationController.forward();
+  // }
 
   Future<void> _stopRecording() async {
     if (!_cameraController.value.isRecordingVideo) return;
 
-    _buttonAnimationController.reverse();
-    _progressAnimationController.reset();
+    //_buttonAnimationController.reverse();
+    //_progressAnimationController.reset();
 
     final video = await _cameraController.stopVideoRecording();
+
+    print('on stop recording');
+    print(video.name);
+    print(video.path);
+
+    final videoPreview = await saveVideo(video);
 
     if (!mounted) return;
 
@@ -177,43 +180,61 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
       context,
       MaterialPageRoute(
         builder: (context) => VideoPreviewScreen(
-          video: video,
+          videoPreview: videoPreview,
           isPicked: false,
         ),
       ),
     );
   }
 
-  Future<void> _onPickVideoPressed() async {
-    final video = await ImagePicker().pickVideo(
-      source: ImageSource.gallery,
-    );
-    if (video == null) return;
+  // Future<void> _onPickVideoPressed() async {
+  //   final video = await ImagePicker().pickVideo(
+  //     source: ImageSource.gallery,
+  //   );
+  //   if (video == null) return;
 
-    if (!mounted) return;
+  //   final File videoPreview = await saveVideo(video);
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VideoPreviewScreen(
-          video: video,
-          isPicked: true,
-        ),
-      ),
-    );
-  }
+  //   if (!mounted) return;
 
-  onVerticalDragUpdate(DragUpdateDetails details, BuildContext context) async {
-    if (details.delta.dy < 0 && _currentZoomLevel < _maximumZoomLevel) {
-      _currentZoomLevel += _zoomLevelStep;
-    } else if (details.delta.dy > 0 && _currentZoomLevel > _minimumZoomLevel) {
-      _currentZoomLevel -= _zoomLevelStep;
+  //   print('on pick video pressed');
+  //   print(videoPreview.path);
+
+  //   Navigator.push(
+  //     context,
+  //     MaterialPageRoute(
+  //       builder: (context) => VideoPreviewScreen(
+  //         videoPreview: videoPreview,
+  //         isPicked: true,
+  //       ),
+  //     ),
+  //   );
+  // }
+
+  // onVerticalDragUpdate(DragUpdateDetails details, BuildContext context) async {
+  //   if (details.delta.dy < 0 && _currentZoomLevel < _maximumZoomLevel) {
+  //     _currentZoomLevel += _zoomLevelStep;
+  //   } else if (details.delta.dy > 0 && _currentZoomLevel > _minimumZoomLevel) {
+  //     _currentZoomLevel -= _zoomLevelStep;
+  //   }
+  //   _currentZoomLevel =
+  //       _currentZoomLevel.clamp(_minimumZoomLevel, _maximumZoomLevel);
+  //   _cameraController.setZoomLevel(_currentZoomLevel);
+
+  //   setState(() {});
+  // }
+
+  Future<File> saveVideo(XFile video) async {
+    final Directory tempDir = await getTemporaryDirectory();
+    final String tempPath = video.path;
+    if (video.path.endsWith('.temp')) {
+      final String newFileName = path.join(
+          tempDir.path, '${DateTime.now().millisecondsSinceEpoch}.mp4');
+      final File tempFile = File(tempPath);
+      final File newFile = tempFile.renameSync(newFileName);
+      return newFile;
     }
-    _currentZoomLevel =
-        _currentZoomLevel.clamp(_minimumZoomLevel, _maximumZoomLevel);
-    _cameraController.setZoomLevel(_currentZoomLevel);
-
-    setState(() {});
+    return File(video.path);
   }
 
   @override
@@ -263,101 +284,147 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
                     ),
                   ),
                   if (!_noCamera)
+                    // Positioned(
+                    //   top: Sizes.size20,
+                    //   right: Sizes.size20,
+                    //   child: Column(
+                    //     children: [
+                    //       IconButton(
+                    //         color: Colors.white,
+                    //         onPressed: _toggleSelfieMode,
+                    //         icon: const Icon(
+                    //           Icons.cameraswitch,
+                    //         ),
+                    //       ),
+                    //       Gaps.v10,
+                    //       VideoFlashButton(
+                    //         flashMode: _flashMode,
+                    //         targetMode: FlashMode.off,
+                    //         setFlashMode: _setFlashMode,
+                    //         icon: Icons.flash_off_rounded,
+                    //       ),
+                    //       Gaps.v10,
+                    //       VideoFlashButton(
+                    //         flashMode: _flashMode,
+                    //         targetMode: FlashMode.always,
+                    //         setFlashMode: _setFlashMode,
+                    //         icon: Icons.flash_on_rounded,
+                    //       ),
+                    //       Gaps.v10,
+                    //       VideoFlashButton(
+                    //         flashMode: _flashMode,
+                    //         targetMode: FlashMode.auto,
+                    //         setFlashMode: _setFlashMode,
+                    //         icon: Icons.flash_auto_rounded,
+                    //       ),
+                    //       Gaps.v10,
+                    //       VideoFlashButton(
+                    //         flashMode: _flashMode,
+                    //         targetMode: FlashMode.torch,
+                    //         setFlashMode: _setFlashMode,
+                    //         icon: Icons.flashlight_on_rounded,
+                    //       ),
+                    //     ],
+                    //   ),
+                    // ),
                     Positioned(
-                      top: Sizes.size20,
-                      right: Sizes.size20,
-                      child: Column(
+                      bottom: Sizes.size40,
+                      width: MediaQuery.of(context).size.width,
+                      child: Row(
                         children: [
-                          IconButton(
-                            color: Colors.white,
-                            onPressed: _toggleSelfieMode,
-                            icon: const Icon(
-                              Icons.cameraswitch,
-                            ),
-                          ),
-                          Gaps.v10,
-                          VideoFlashButton(
-                            flashMode: _flashMode,
-                            targetMode: FlashMode.off,
-                            setFlashMode: _setFlashMode,
-                            icon: Icons.flash_off_rounded,
-                          ),
-                          Gaps.v10,
-                          VideoFlashButton(
-                            flashMode: _flashMode,
-                            targetMode: FlashMode.always,
-                            setFlashMode: _setFlashMode,
-                            icon: Icons.flash_on_rounded,
-                          ),
-                          Gaps.v10,
-                          VideoFlashButton(
-                            flashMode: _flashMode,
-                            targetMode: FlashMode.auto,
-                            setFlashMode: _setFlashMode,
-                            icon: Icons.flash_auto_rounded,
-                          ),
-                          Gaps.v10,
-                          VideoFlashButton(
-                            flashMode: _flashMode,
-                            targetMode: FlashMode.torch,
-                            setFlashMode: _setFlashMode,
-                            icon: Icons.flashlight_on_rounded,
-                          ),
-                        ],
-                      ),
-                    ),
-                  Positioned(
-                    bottom: Sizes.size40,
-                    width: MediaQuery.of(context).size.width,
-                    child: Row(
-                      children: [
-                        const Spacer(),
-                        GestureDetector(
-                          onVerticalDragUpdate: (details) =>
-                              onVerticalDragUpdate(details, context),
-                          onTapDown: _starRecording,
-                          onTapUp: (details) => _stopRecording(),
-                          child: ScaleTransition(
-                            scale: _buttonAnimation,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                SizedBox(
-                                  width: Sizes.size80 + Sizes.size14,
-                                  height: Sizes.size80 + Sizes.size14,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.red.shade400,
-                                    strokeWidth: Sizes.size6,
-                                    value: _progressAnimationController.value,
-                                  ),
+                          const Spacer(),
+                          GestureDetector(
+                            // onVerticalDragUpdate: (details) =>
+                            //     onVerticalDragUpdate(details, context),
+                            onTap: () async {
+                              try {
+                                await _cameraController.initialize();
+
+                                await _cameraController
+                                    .prepareForVideoRecording(); // for IOS
+
+                                //_flashMode = _cameraController.value.flashMode;
+                                _maximumZoomLevel =
+                                    await _cameraController.getMaxZoomLevel();
+                                _minimumZoomLevel =
+                                    await _cameraController.getMinZoomLevel();
+
+                                if (!mounted) {
+                                  return;
+                                }
+                                if (_isRecording) {
+                                  await _stopRecording();
+                                } else {
+                                  await _cameraController
+                                      .prepareForVideoRecording();
+                                  print('on start recording');
+                                  await _cameraController.startVideoRecording();
+                                }
+
+                                setState(() {
+                                  _isRecording = !_isRecording;
+                                });
+                              } catch (e) {
+                                print(e);
+                              }
+                            },
+                            //onTapDown: _startRecording,
+                            //onTapUp: (details) => _stopRecording(),
+                            child: Container(
+                              width: Sizes.size80,
+                              height: Sizes.size80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.red.shade400,
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  _isRecording ? Icons.stop : Icons.circle,
+                                  color: Colors.white,
                                 ),
-                                Container(
-                                  width: Sizes.size80,
-                                  height: Sizes.size80,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.red.shade400,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Container(
-                            alignment: Alignment.center,
-                            child: IconButton(
-                              onPressed: _onPickVideoPressed,
-                              icon: const FaIcon(
-                                FontAwesomeIcons.image,
-                                color: Colors.white,
                               ),
                             ),
+                            // ScaleTransition(
+                            //   scale: _buttonAnimation,
+                            //   child: Stack(
+                            //     alignment: Alignment.center,
+                            //     children: [
+                            //       SizedBox(
+                            //         width: Sizes.size80 + Sizes.size14,
+                            //         height: Sizes.size80 + Sizes.size14,
+                            //         child: CircularProgressIndicator(
+                            //           color: Colors.red.shade400,
+                            //           strokeWidth: Sizes.size6,
+                            //           value: _progressAnimationController.value,
+                            //         ),
+                            //       ),
+                            //       Container(
+                            //         width: Sizes.size80,
+                            //         height: Sizes.size80,
+                            //         decoration: BoxDecoration(
+                            //           shape: BoxShape.circle,
+                            //           color: Colors.red.shade400,
+                            //         ),
+                            //       ),
+                            //     ],
+                            //   ),
+                            // ),
                           ),
-                        )
-                      ],
-                    ),
-                  )
+                          // Expanded(
+                          //   child: Container(
+                          //     alignment: Alignment.center,
+                          //     child: IconButton(
+                          //       onPressed: _onPickVideoPressed,
+                          //       icon: const FaIcon(
+                          //         FontAwesomeIcons.image,
+                          //         color: Colors.white,
+                          //       ),
+                          //     ),
+                          //   ),
+                          // )
+                        ],
+                      ),
+                    )
                 ],
               ),
       ),
