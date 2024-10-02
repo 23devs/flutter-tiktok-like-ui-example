@@ -45,7 +45,7 @@ dependencies:
   google_fonts: ^4.0.4
 
   go_router: 6.0.2
-  camera: ^0.11.0+2
+  camera: ^0.10.3
 
   permission_handler: ^11.3.1
 

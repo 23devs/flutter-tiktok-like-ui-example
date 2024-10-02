@@ -10,12 +10,12 @@ import '../view_models/upload_video_view_model.dart';
 
 class VideoPreviewScreen extends ConsumerStatefulWidget {
   final File videoPreview;
-  final bool isPicked;
+  //final bool isPicked;
 
   const VideoPreviewScreen({
     super.key,
     required this.videoPreview,
-    required this.isPicked,
+    //required this.isPicked,
   });
 
   @override
@@ -85,15 +85,13 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
       appBar: AppBar(
         title: const Text('Create petition'),
         actions: [
-          if (!widget.isPicked)
-            IconButton(
-              onPressed: _saveToGallery,
-              icon: FaIcon(
-                _savedVideo
-                    ? FontAwesomeIcons.check
-                    : FontAwesomeIcons.download,
-              ),
+          //if (!widget.isPicked)
+          IconButton(
+            onPressed: _saveToGallery,
+            icon: FaIcon(
+              _savedVideo ? FontAwesomeIcons.check : FontAwesomeIcons.download,
             ),
+          ),
           IconButton(
             onPressed: ref.watch(uploadVideoProvider).isLoading
                 ? () {}
