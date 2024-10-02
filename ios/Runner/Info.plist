@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Tiktok Clone</string>
+	<string>Impetus Test</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -46,11 +46,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Upload Video for TiktokClone</string>
+	<string>Needed for recording videos.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Upload Video for TiktokClone</string>
+	<string>Needed for recording videos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Plz let me see yout photos</string>
+	<string>Needed to save videos to the library.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -72,5 +72,10 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+   	<key>NSAllowsArbitraryLoads</key>
+   	<true/>
+	</dict>
 </dict>
 </plist>
