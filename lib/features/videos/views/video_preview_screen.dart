@@ -26,6 +26,7 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
   bool _videoLoaded = false;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  double videoContainerRatio = 0.5;
 
   Future<void> _initVideo() async {
     _videoPlayerController = VideoPlayerController.file(
@@ -76,6 +77,16 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
         );
   }
 
+  double getScale() {
+    double videoRatio = _videoPlayerController.value.aspectRatio;
+
+    if (videoRatio < videoContainerRatio) {
+      return videoContainerRatio / videoRatio;
+    } else {
+      return videoRatio / videoContainerRatio;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -101,9 +112,17 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
       ),
       body: _videoLoaded
           ? Stack(children: [
-              RotationTransition(
-                turns: const AlwaysStoppedAnimation(90 / 360),
-                child: VideoPlayer(_videoPlayerController),
+              AspectRatio(
+                aspectRatio: videoContainerRatio,
+                child: Stack(children: <Widget>[
+                  Transform.scale(
+                    scale: getScale(),
+                    child: AspectRatio(
+                      aspectRatio: _videoPlayerController.value.aspectRatio,
+                      child: VideoPlayer(_videoPlayerController),
+                    ),
+                  ),
+                ]),
               ),
               Column(
                 children: [

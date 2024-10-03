@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../constants/sizes.dart';
 import './video_preview_screen.dart';
 
 class VideoRecordingScreen extends StatefulWidget {
@@ -20,6 +19,7 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
     with WidgetsBindingObserver {
   bool _isLoading = true;
   bool _isRecording = false;
+  bool _isPaused = false;
   bool _isSelfieMode = false;
   late CameraController _cameraController;
 
@@ -60,24 +60,35 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
           alignment: Alignment.bottomCenter,
           children: [
             _cameraController.buildPreview(),
-            Positioned(
-              top: Sizes.size20,
-              right: Sizes.size20,
-              child: IconButton(
-                color: Colors.white,
-                onPressed: _toggleSelfieMode,
-                icon: const Icon(
-                  Icons.cameraswitch,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _isRecording
+                    ? IconButton(
+                        icon: Icon(
+                          _isPaused ? Icons.play_arrow : Icons.pause,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => _pauseResumeRecording())
+                    : const SizedBox(),
+                FloatingActionButton(
+                  backgroundColor: Colors.red,
+                  child: Icon(
+                    _isRecording ? Icons.stop : Icons.circle,
+                    color: Colors.white,
+                  ),
+                  onPressed: () => _recordVideo(),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(25),
-              child: FloatingActionButton(
-                backgroundColor: Colors.red,
-                child: Icon(_isRecording ? Icons.stop : Icons.circle),
-                onPressed: () => _recordVideo(),
-              ),
+                !_isRecording
+                    ? IconButton(
+                        color: Colors.white,
+                        onPressed: () => _toggleSelfieMode(),
+                        icon: const Icon(
+                          Icons.cameraswitch,
+                        ),
+                      )
+                    : const SizedBox(),
+              ],
             ),
           ],
         ),
@@ -133,12 +144,24 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   }
 
   Future<void> _toggleSelfieMode() async {
-    _cameraController.dispose();
+    await _cameraController.dispose();
     await _initCamera(
         _isSelfieMode ? CameraLensDirection.back : CameraLensDirection.front);
 
     setState(() {
       _isSelfieMode = !_isSelfieMode;
+    });
+  }
+
+  Future<void> _pauseResumeRecording() async {
+    if (_isPaused) {
+      await _cameraController.resumeVideoRecording();
+    } else {
+      await _cameraController.pauseVideoRecording();
+    }
+
+    setState(() {
+      _isPaused = !_isPaused;
     });
   }
 }
