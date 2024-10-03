@@ -10,12 +10,10 @@ import '../view_models/upload_video_view_model.dart';
 
 class VideoPreviewScreen extends ConsumerStatefulWidget {
   final File videoPreview;
-  //final bool isPicked;
 
   const VideoPreviewScreen({
     super.key,
     required this.videoPreview,
-    //required this.isPicked,
   });
 
   @override
@@ -25,13 +23,11 @@ class VideoPreviewScreen extends ConsumerStatefulWidget {
 class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
   late final VideoPlayerController _videoPlayerController;
   bool _savedVideo = false;
+  bool _videoLoaded = false;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
   Future<void> _initVideo() async {
-    print('init video');
-    print(widget.videoPreview.path);
-
     _videoPlayerController = VideoPlayerController.file(
       widget.videoPreview,
     );
@@ -41,7 +37,9 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
     await _videoPlayerController.setVolume(0);
     await _videoPlayerController.play();
 
-    setState(() {});
+    setState(() {
+      _videoLoaded = true;
+    });
   }
 
   @override
@@ -64,9 +62,9 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
       albumName: "Impetus test",
     );
 
-    _savedVideo = true;
-
-    setState(() {});
+    setState(() {
+      _savedVideo = true;
+    });
   }
 
   void _onUploadPressed() async {
@@ -85,7 +83,6 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
       appBar: AppBar(
         title: const Text('Create petition'),
         actions: [
-          //if (!widget.isPicked)
           IconButton(
             onPressed: _saveToGallery,
             icon: FaIcon(
@@ -102,9 +99,12 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
           )
         ],
       ),
-      body: _videoPlayerController.value.isInitialized
+      body: _videoLoaded
           ? Stack(children: [
-              VideoPlayer(_videoPlayerController),
+              RotationTransition(
+                turns: const AlwaysStoppedAnimation(90 / 360),
+                child: VideoPlayer(_videoPlayerController),
+              ),
               Column(
                 children: [
                   TextFormField(
@@ -126,7 +126,7 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
                 ],
               ),
             ])
-          : null,
+          : const CircularProgressIndicator(),
     );
   }
 }
