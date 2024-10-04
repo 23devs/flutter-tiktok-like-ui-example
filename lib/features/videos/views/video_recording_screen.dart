@@ -4,6 +4,9 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../constants/gaps.dart';
 import '../../../constants/sizes.dart';
 import './video_preview_screen.dart';
 
@@ -26,6 +29,7 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   double _minimumZoomLevel = 0.0;
   double _currentZoomLevel = 0.0;
   final double _zoomLevelStep = 0.05;
+  late FlashMode _flashMode;
   late CameraController _cameraController;
 
   late final AnimationController _buttonAnimationController =
@@ -40,7 +44,7 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   late final AnimationController _progressAnimationController =
       AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 10),
+    duration: const Duration(seconds: 30),
     lowerBound: 0.0,
     upperBound: 1.0,
   );
@@ -56,7 +60,7 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
     });
     _progressAnimationController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        //_stopRecording();
+        _stopRecording();
       }
     });
   }
@@ -94,8 +98,15 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
           alignment: Alignment.bottomCenter,
           children: [
             _cameraController.buildPreview(),
+            const Positioned(
+              top: Sizes.size40,
+              left: Sizes.size20,
+              child: CloseButton(
+                color: Colors.white,
+              ),
+            ),
             Positioned(
-              top: Sizes.size20,
+              top: Sizes.size40,
               right: Sizes.size20,
               child: Column(
                 children: [
@@ -104,6 +115,16 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
                     onPressed: _toggleSelfieMode,
                     icon: const Icon(
                       Icons.cameraswitch,
+                    ),
+                  ),
+                  Gaps.v10,
+                  IconButton(
+                    color: Colors.white,
+                    onPressed: _toggleFlashMode,
+                    icon: Icon(
+                      _flashMode == FlashMode.off
+                          ? Icons.flashlight_on
+                          : Icons.flash_off_rounded,
                     ),
                   ),
                 ],
@@ -119,7 +140,8 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
                     onVerticalDragUpdate: (details) =>
                         _onVerticalDragUpdate(details, context),
                     onTapDown: (details) => _recordVideo(),
-                    onTapUp: (details) => _pauseRecording(),
+                    onTapUp: (details) => _recordVideo(),
+                    onTap: () => _recordVideo(),
                     child: ScaleTransition(
                       scale: _buttonAnimation,
                       child: Stack(
@@ -130,7 +152,7 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
                             height: Sizes.size80 + Sizes.size14,
                             child: CircularProgressIndicator(
                               color: Colors.white,
-                              strokeWidth: Sizes.size4,
+                              strokeWidth: Sizes.size2,
                               value: _progressAnimationController.value,
                             ),
                           ),
@@ -146,18 +168,27 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
                       ),
                     ),
                   ),
-                  // Expanded(
-                  //   child: Container(
-                  //     alignment: Alignment.center,
-                  //     child: IconButton(
-                  //       onPressed: _onPickVideoPressed,
-                  //       icon: const FaIcon(
-                  //         FontAwesomeIcons.image,
-                  //         color: Colors.white,
-                  //       ),
-                  //     ),
-                  //   ),
-                  // )
+                  Expanded(
+                    child: _isRecording
+                        ? Container(
+                            alignment: Alignment.center,
+                            child: IconButton(
+                                onPressed: () => _stopRecording(),
+                                icon: const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                )))
+                        : Container(
+                            alignment: Alignment.center,
+                            child: IconButton(
+                              onPressed: () => _pickVideoFromGallery(),
+                              icon: const FaIcon(
+                                FontAwesomeIcons.image,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                  )
                 ],
               ),
             )
@@ -178,6 +209,7 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
       await _cameraController.initialize();
       await _cameraController
           .lockCaptureOrientation(DeviceOrientation.portraitUp);
+      _flashMode = _cameraController.value.flashMode;
       _maximumZoomLevel = await _cameraController.getMaxZoomLevel();
       _minimumZoomLevel = await _cameraController.getMinZoomLevel();
 
@@ -190,27 +222,56 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   }
 
   Future<void> _recordVideo() async {
-    if (_isRecording && _isPaused) {
-      try {
-        await _cameraController.resumeVideoRecording();
+    if (!_isRecording) {
+      await _startRecording();
+      return;
+    }
 
-        _buttonAnimationController.forward();
-        _progressAnimationController.forward();
-      } on CameraException catch (e) {
-        log('${e.code}: ${e.description}');
-      }
-    } else {
-      try {
-        await _cameraController.prepareForVideoRecording();
-        await _cameraController.startVideoRecording();
+    if (_isPaused) {
+      await _resumeRecording();
+      return;
+    }
 
-        _buttonAnimationController.forward();
-        _progressAnimationController.forward();
+    await _pauseRecording();
+  }
 
-        setState(() => _isRecording = true);
-      } on CameraException catch (e) {
-        log('${e.code}: ${e.description}');
-      }
+  Future<void> _resumeRecording() async {
+    try {
+      await _cameraController.resumeVideoRecording();
+
+      _buttonAnimationController.forward();
+      _progressAnimationController.forward();
+
+      setState(() {
+        _isPaused = !_isPaused;
+      });
+    } on CameraException catch (e) {
+      log('${e.code}: ${e.description}');
+    }
+  }
+
+  Future<void> _pauseRecording() async {
+    await _cameraController.pauseVideoRecording();
+
+    _buttonAnimationController.stop();
+    _progressAnimationController.stop();
+
+    setState(() {
+      _isPaused = !_isPaused;
+    });
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      await _cameraController.prepareForVideoRecording();
+      await _cameraController.startVideoRecording();
+
+      _buttonAnimationController.forward();
+      _progressAnimationController.forward();
+
+      setState(() => _isRecording = true);
+    } on CameraException catch (e) {
+      log('${e.code}: ${e.description}');
     }
   }
 
@@ -242,17 +303,20 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
     });
   }
 
-  Future<void> _pauseRecording() async {
-    if (_isRecording && !_isPaused) {
-      await _cameraController.pauseVideoRecording();
+  Future<void> _toggleFlashMode() async {
+    FlashMode mode = FlashMode.off;
 
-      _buttonAnimationController.stop();
-      _progressAnimationController.stop();
+    if (_flashMode == FlashMode.off) {
+      mode = FlashMode.torch;
     }
 
-    setState(() {
-      _isPaused = !_isPaused;
-    });
+    if (mode != _flashMode) {
+      await _cameraController.setFlashMode(mode);
+
+      setState(() {
+        _flashMode = mode;
+      });
+    }
   }
 
   Future<void> _onVerticalDragUpdate(
@@ -267,5 +331,23 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
     _cameraController.setZoomLevel(_currentZoomLevel);
 
     setState(() {});
+  }
+
+  Future<void> _pickVideoFromGallery() async {
+    final video = await ImagePicker().pickVideo(
+      source: ImageSource.gallery,
+    );
+    if (video == null) return;
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VideoPreviewScreen(
+          videoPreview: File(video.path),
+        ),
+      ),
+    );
   }
 }
