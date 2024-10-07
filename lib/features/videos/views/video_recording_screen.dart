@@ -100,50 +100,57 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
             _cameraController.buildPreview(),
             _isRecording
                 ? Positioned(
-                    top: Sizes.size40,
+                    top: Sizes.size56,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.circle,
-                          color: Colors.red.shade400,
+                          color: _isPaused
+                              ? Colors.grey.shade400
+                              : Colors.red.shade400,
                         )
                       ],
                     ),
                   )
                 : const SizedBox(),
-            const Positioned(
-              top: Sizes.size40,
-              left: Sizes.size20,
-              child: CloseButton(
-                color: Colors.white,
-              ),
-            ),
-            Positioned(
-              top: Sizes.size40,
-              right: Sizes.size20,
-              child: Column(
-                children: [
-                  IconButton(
-                    color: Colors.white,
-                    onPressed: _toggleSelfieMode,
-                    icon: const Icon(
-                      Icons.cameraswitch,
+            !_isRecording || (_isRecording && _isPaused)
+                ? Positioned(
+                    top: Sizes.size40,
+                    left: Sizes.size20,
+                    child: CloseButton(
+                      color: Colors.white,
+                      onPressed: () => _closeVideo(context),
                     ),
-                  ),
-                  Gaps.v10,
-                  IconButton(
-                    color: Colors.white,
-                    onPressed: _toggleFlashMode,
-                    icon: Icon(
-                      _flashMode == FlashMode.off
-                          ? Icons.flashlight_on
-                          : Icons.flash_off_rounded,
+                  )
+                : const SizedBox(),
+            !_isRecording || (_isRecording && _isPaused)
+                ? Positioned(
+                    top: Sizes.size40,
+                    right: Sizes.size20,
+                    child: Column(
+                      children: [
+                        IconButton(
+                          color: Colors.white,
+                          onPressed: _toggleSelfieMode,
+                          icon: const Icon(
+                            Icons.cameraswitch,
+                          ),
+                        ),
+                        Gaps.v10,
+                        IconButton(
+                          color: Colors.white,
+                          onPressed: _toggleFlashMode,
+                          icon: Icon(
+                            _flashMode == FlashMode.off
+                                ? Icons.flashlight_on
+                                : Icons.flash_off_rounded,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            ),
+                  )
+                : const SizedBox(),
             Positioned(
               bottom: Sizes.size40,
               width: MediaQuery.of(context).size.width,
@@ -212,15 +219,27 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
     }
   }
 
+  Future<void> _closeVideo(BuildContext context) async {
+    _cameraController.dispose();
+    _progressAnimationController.dispose();
+    _buttonAnimationController.dispose();
+    Navigator.pop(context);
+  }
+
   Future<void> _initCamera(CameraLensDirection direction) async {
     try {
       final cameras = await availableCameras();
       final availableCamera =
           cameras.firstWhere((camera) => camera.lensDirection == direction);
+
+      // with ResolutionPreset.max was not working on test device
+      // camera surface was not created
+      // currently ResolutionPreset.high ~ 720p
       _cameraController =
           CameraController(availableCamera, ResolutionPreset.high);
 
       await _cameraController.initialize();
+      // to fix the position (portrait for a clip video)
       await _cameraController
           .lockCaptureOrientation(DeviceOrientation.portraitUp);
       _flashMode = _cameraController.value.flashMode;
@@ -236,11 +255,13 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   }
 
   Future<void> _recordVideo() async {
+    // start recording if didn't previously
     if (!_isRecording) {
       await _startRecording();
       return;
     }
 
+    // if the video is recording and is paused, resume recording on tap
     if (_isPaused) {
       await _resumeRecording();
       return;
@@ -277,6 +298,7 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
 
   Future<void> _startRecording() async {
     try {
+      // prepare needed for iOS
       await _cameraController.prepareForVideoRecording();
       await _cameraController.startVideoRecording();
 
@@ -292,6 +314,8 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   Future<void> _stopRecording() async {
     try {
       final file = await _cameraController.stopVideoRecording();
+      _progressAnimationController.reset();
+      _buttonAnimationController.reset();
       setState(() => _isRecording = false);
 
       final route = MaterialPageRoute(
@@ -318,6 +342,8 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   }
 
   Future<void> _toggleFlashMode() async {
+    // for Android only torch mode is available
+    // could later add others for iOS
     FlashMode mode = FlashMode.off;
 
     if (_flashMode == FlashMode.off) {
@@ -335,6 +361,7 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
 
   Future<void> _onVerticalDragUpdate(
       DragUpdateDetails details, BuildContext context) async {
+    //zoom in or out when drag up on the panel (tiktok like)
     if (details.delta.dy < 0 && _currentZoomLevel < _maximumZoomLevel) {
       _currentZoomLevel += _zoomLevelStep;
     } else if (details.delta.dy > 0 && _currentZoomLevel > _minimumZoomLevel) {

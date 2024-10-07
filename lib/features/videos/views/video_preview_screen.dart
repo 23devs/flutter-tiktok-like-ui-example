@@ -87,6 +87,8 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
     }
   }
 
+// the preview of the video is rotated somehow and is not showing correctly
+// not sure how to fix this issue
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -112,18 +114,19 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
       ),
       body: _videoLoaded
           ? Stack(children: [
-              AspectRatio(
-                aspectRatio: videoContainerRatio,
-                child: Stack(children: <Widget>[
-                  Transform.scale(
-                    scale: getScale(),
-                    child: AspectRatio(
-                      aspectRatio: _videoPlayerController.value.aspectRatio,
-                      child: VideoPlayer(_videoPlayerController),
-                    ),
-                  ),
-                ]),
-              ),
+              // AspectRatio(
+              //   aspectRatio: videoContainerRatio,
+              //   child: Stack(children: <Widget>[
+              //     Transform.scale(
+              //       scale: getScale(),
+              //       child: AspectRatio(
+              //         aspectRatio: _videoPlayerController.value.aspectRatio,
+              //         child:
+              VideoPlayer(_videoPlayerController),
+              //       ),
+              //     ),
+              //   ]),
+              // ),
               Column(
                 children: [
                   TextFormField(
