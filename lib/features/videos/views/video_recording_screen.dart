@@ -1,15 +1,14 @@
+import 'dart:developer';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:impetus_test/constants/gaps.dart';
-import 'package:impetus_test/constants/sizes.dart';
-import 'package:impetus_test/features/videos/views/video_preview_screen.dart';
-import 'package:impetus_test/features/videos/views/widgets/video_flash_button.dart';
+import '../../../constants/gaps.dart';
+import '../../../constants/sizes.dart';
+import './video_preview_screen.dart';
 
 class VideoRecordingScreen extends StatefulWidget {
   static const String routeName = "postVideo";
@@ -21,16 +20,17 @@ class VideoRecordingScreen extends StatefulWidget {
 }
 
 class _VideoRecordingScreenState extends State<VideoRecordingScreen>
-    with TickerProviderStateMixin, WidgetsBindingObserver {
-  bool _hasPermission = false;
-  List<String> _deniedPermissions = [];
+    with WidgetsBindingObserver, TickerProviderStateMixin {
+  bool _isLoading = true;
+  bool _isRecording = false;
+  bool _isPaused = false;
   bool _isSelfieMode = false;
   double _maximumZoomLevel = 0.0;
   double _minimumZoomLevel = 0.0;
   double _currentZoomLevel = 0.0;
   final double _zoomLevelStep = 0.05;
-
-  late final bool _noCamera = kDebugMode && Platform.isIOS;
+  late FlashMode _flashMode;
+  late CameraController _cameraController;
 
   late final AnimationController _buttonAnimationController =
       AnimationController(
@@ -44,24 +44,16 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
   late final AnimationController _progressAnimationController =
       AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 10),
+    duration: const Duration(seconds: 30),
     lowerBound: 0.0,
     upperBound: 1.0,
   );
 
-  late FlashMode _flashMode;
-  late CameraController _cameraController;
-
   @override
   void initState() {
     super.initState();
-    if (!_noCamera) {
-      initPermissions();
-    } else {
-      setState(() {
-        _hasPermission = true;
-      });
-    }
+    _initCamera(CameraLensDirection.back);
+
     WidgetsBinding.instance.addObserver(this);
     _progressAnimationController.addListener(() {
       setState(() {});
@@ -75,135 +67,301 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
 
   @override
   void dispose() {
+    _cameraController.dispose();
     _progressAnimationController.dispose();
     _buttonAnimationController.dispose();
-
-    if (!_noCamera) {
-      _cameraController.dispose();
-    }
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_noCamera) return;
-    if (!_hasPermission) return;
     if (!_cameraController.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
       _cameraController.dispose();
     } else if (state == AppLifecycleState.resumed) {
-      initCamera();
+      _initCamera(CameraLensDirection.back);
     }
   }
 
-  Future<void> initCamera() async {
-    final cameras = await availableCameras();
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Container(
+        color: Colors.white,
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    } else {
+      return Center(
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            _cameraController.buildPreview(),
+            _isRecording
+                ? Positioned(
+                    top: Sizes.size56,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.circle,
+                          color: _isPaused
+                              ? Colors.grey.shade400
+                              : Colors.red.shade400,
+                        )
+                      ],
+                    ),
+                  )
+                : const SizedBox(),
+            !_isRecording || (_isRecording && _isPaused)
+                ? Positioned(
+                    top: Sizes.size40,
+                    left: Sizes.size20,
+                    child: CloseButton(
+                      color: Colors.white,
+                      onPressed: () => _closeVideo(context),
+                    ),
+                  )
+                : const SizedBox(),
+            !_isRecording || (_isRecording && _isPaused)
+                ? Positioned(
+                    top: Sizes.size40,
+                    right: Sizes.size20,
+                    child: Column(
+                      children: [
+                        IconButton(
+                          color: Colors.white,
+                          onPressed: _toggleSelfieMode,
+                          icon: const Icon(
+                            Icons.cameraswitch,
+                          ),
+                        ),
+                        Gaps.v10,
+                        IconButton(
+                          color: Colors.white,
+                          onPressed: _toggleFlashMode,
+                          icon: Icon(
+                            _flashMode == FlashMode.off
+                                ? Icons.flashlight_on
+                                : Icons.flash_off_rounded,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox(),
+            Positioned(
+              bottom: Sizes.size40,
+              width: MediaQuery.of(context).size.width,
+              child: Row(
+                children: [
+                  const Spacer(),
+                  GestureDetector(
+                    onVerticalDragUpdate: (details) =>
+                        _onVerticalDragUpdate(details, context),
+                    onTapDown: (details) => _recordVideo(),
+                    onTapUp: (details) => _recordVideo(),
+                    onTap: () => _recordVideo(),
+                    child: ScaleTransition(
+                      scale: _buttonAnimation,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: Sizes.size80 + Sizes.size14,
+                            height: Sizes.size80 + Sizes.size14,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: Sizes.size2,
+                              value: _progressAnimationController.value,
+                            ),
+                          ),
+                          Container(
+                            width: Sizes.size80,
+                            height: Sizes.size80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.red.shade400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: _isRecording
+                        ? Container(
+                            alignment: Alignment.center,
+                            child: IconButton(
+                                onPressed: () => _stopRecording(),
+                                icon: const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                )))
+                        : Container(
+                            alignment: Alignment.center,
+                            child: IconButton(
+                              onPressed: () => _pickVideoFromGallery(),
+                              icon: const FaIcon(
+                                FontAwesomeIcons.image,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                  )
+                ],
+              ),
+            )
+          ],
+        ),
+      );
+    }
+  }
 
-    if (cameras.isEmpty) {
+  Future<void> _closeVideo(BuildContext context) async {
+    _cameraController.dispose();
+    _progressAnimationController.dispose();
+    _buttonAnimationController.dispose();
+    Navigator.pop(context);
+  }
+
+  Future<void> _initCamera(CameraLensDirection direction) async {
+    try {
+      final cameras = await availableCameras();
+      final availableCamera =
+          cameras.firstWhere((camera) => camera.lensDirection == direction);
+
+      // with ResolutionPreset.max was not working on test device
+      // camera surface was not created
+      // currently ResolutionPreset.high ~ 720p
+      _cameraController =
+          CameraController(availableCamera, ResolutionPreset.high);
+
+      await _cameraController.initialize();
+      // to fix the position (portrait for a clip video)
+      await _cameraController
+          .lockCaptureOrientation(DeviceOrientation.portraitUp);
+      _flashMode = _cameraController.value.flashMode;
+      _maximumZoomLevel = await _cameraController.getMaxZoomLevel();
+      _minimumZoomLevel = await _cameraController.getMinZoomLevel();
+
+      setState(() {
+        _isLoading = false;
+      });
+    } on CameraException catch (e) {
+      log('${e.code}: ${e.description}');
+    }
+  }
+
+  Future<void> _recordVideo() async {
+    // start recording if didn't previously
+    if (!_isRecording) {
+      await _startRecording();
       return;
     }
 
-    _cameraController = CameraController(
-      cameras[_isSelfieMode ? 1 : 0],
-      ResolutionPreset.ultraHigh,
-      enableAudio: false,
-    );
-
-    await _cameraController.initialize();
-
-    await _cameraController.prepareForVideoRecording(); // for IOS
-
-    _flashMode = _cameraController.value.flashMode;
-    _maximumZoomLevel = await _cameraController.getMaxZoomLevel();
-    _minimumZoomLevel = await _cameraController.getMinZoomLevel();
-
-    setState(() {});
-  }
-
-  Future<void> initPermissions() async {
-    final cameraPermission = await Permission.camera.request();
-    final micPermission = await Permission.microphone.request();
-
-    final cameraDenied =
-        cameraPermission.isDenied || cameraPermission.isPermanentlyDenied;
-
-    final micDenied =
-        micPermission.isDenied || micPermission.isPermanentlyDenied;
-
-    if (!cameraDenied && !micDenied) {
-      _hasPermission = true;
-      await initCamera();
-    } else {
-      _deniedPermissions = [
-        if (cameraDenied) "Camera",
-        if (micDenied) "Microphone",
-      ];
+    // if the video is recording and is paused, resume recording on tap
+    if (_isPaused) {
+      await _resumeRecording();
+      return;
     }
-    setState(() {});
+
+    await _pauseRecording();
   }
 
-  Future<void> _toggleSelfieMode() async {
-    _isSelfieMode = !_isSelfieMode;
-    await initCamera();
-    setState(() {});
+  Future<void> _resumeRecording() async {
+    try {
+      await _cameraController.resumeVideoRecording();
+
+      _buttonAnimationController.forward();
+      _progressAnimationController.forward();
+
+      setState(() {
+        _isPaused = !_isPaused;
+      });
+    } on CameraException catch (e) {
+      log('${e.code}: ${e.description}');
+    }
   }
 
-  Future<void> _setFlashMode(FlashMode newFlashMode) async {
-    await _cameraController.setFlashMode(newFlashMode);
-    _flashMode = newFlashMode;
-    setState(() {});
+  Future<void> _pauseRecording() async {
+    await _cameraController.pauseVideoRecording();
+
+    _buttonAnimationController.stop();
+    _progressAnimationController.stop();
+
+    setState(() {
+      _isPaused = !_isPaused;
+    });
   }
 
-  Future<void> _starRecording(TapDownDetails _) async {
-    if (_cameraController.value.isRecordingVideo) return;
+  Future<void> _startRecording() async {
+    try {
+      // prepare needed for iOS
+      await _cameraController.prepareForVideoRecording();
+      await _cameraController.startVideoRecording();
 
-    await _cameraController.startVideoRecording();
+      _buttonAnimationController.forward();
+      _progressAnimationController.forward();
 
-    _buttonAnimationController.forward();
-    _progressAnimationController.forward();
+      setState(() => _isRecording = true);
+    } on CameraException catch (e) {
+      log('${e.code}: ${e.description}');
+    }
   }
 
   Future<void> _stopRecording() async {
-    if (!_cameraController.value.isRecordingVideo) return;
+    try {
+      final file = await _cameraController.stopVideoRecording();
+      _progressAnimationController.reset();
+      _buttonAnimationController.reset();
+      setState(() => _isRecording = false);
 
-    _buttonAnimationController.reverse();
-    _progressAnimationController.reset();
+      final route = MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => VideoPreviewScreen(videoPreview: File(file.path)),
+      );
 
-    final video = await _cameraController.stopVideoRecording();
+      if (!mounted) return;
 
-    if (!mounted) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VideoPreviewScreen(
-          video: video,
-          isPicked: false,
-        ),
-      ),
-    );
+      Navigator.push(context, route);
+    } on CameraException catch (e) {
+      log('${e.code}: ${e.description}');
+    }
   }
 
-  Future<void> _onPickVideoPressed() async {
-    final video = await ImagePicker().pickVideo(
-      source: ImageSource.gallery,
-    );
-    if (video == null) return;
+  Future<void> _toggleSelfieMode() async {
+    await _cameraController.dispose();
+    await _initCamera(
+        _isSelfieMode ? CameraLensDirection.back : CameraLensDirection.front);
 
-    if (!mounted) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VideoPreviewScreen(
-          video: video,
-          isPicked: true,
-        ),
-      ),
-    );
+    setState(() {
+      _isSelfieMode = !_isSelfieMode;
+    });
   }
 
-  onVerticalDragUpdate(DragUpdateDetails details, BuildContext context) async {
+  Future<void> _toggleFlashMode() async {
+    // for Android only torch mode is available
+    // could later add others for iOS
+    FlashMode mode = FlashMode.off;
+
+    if (_flashMode == FlashMode.off) {
+      mode = FlashMode.torch;
+    }
+
+    if (mode != _flashMode) {
+      await _cameraController.setFlashMode(mode);
+
+      setState(() {
+        _flashMode = mode;
+      });
+    }
+  }
+
+  Future<void> _onVerticalDragUpdate(
+      DragUpdateDetails details, BuildContext context) async {
+    //zoom in or out when drag up on the panel (tiktok like)
     if (details.delta.dy < 0 && _currentZoomLevel < _maximumZoomLevel) {
       _currentZoomLevel += _zoomLevelStep;
     } else if (details.delta.dy > 0 && _currentZoomLevel > _minimumZoomLevel) {
@@ -216,150 +374,20 @@ class _VideoRecordingScreenState extends State<VideoRecordingScreen>
     setState(() {});
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SizedBox(
-        width: MediaQuery.of(context).size.width,
-        child: !_hasPermission
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Initializing...",
-                    style:
-                        TextStyle(color: Colors.white, fontSize: Sizes.size20),
-                  ),
-                  Gaps.v20,
-                  const CircularProgressIndicator.adaptive(),
-                  Gaps.v20,
-                  const Text(
-                    "Please grant the following permissions:",
-                    style:
-                        TextStyle(color: Colors.white, fontSize: Sizes.size20),
-                  ),
-                  Gaps.v20,
-                  _deniedPermissions.isEmpty
-                      ? const SizedBox()
-                      : Text(
-                          "• ${_deniedPermissions.join(", ")}",
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: Sizes.size20),
-                        ),
-                ],
-              )
-            : Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (!_noCamera && _cameraController.value.isInitialized)
-                    CameraPreview(_cameraController),
-                  const Positioned(
-                    top: Sizes.size40,
-                    left: Sizes.size20,
-                    child: CloseButton(
-                      color: Colors.white,
-                    ),
-                  ),
-                  if (!_noCamera)
-                    Positioned(
-                      top: Sizes.size20,
-                      right: Sizes.size20,
-                      child: Column(
-                        children: [
-                          IconButton(
-                            color: Colors.white,
-                            onPressed: _toggleSelfieMode,
-                            icon: const Icon(
-                              Icons.cameraswitch,
-                            ),
-                          ),
-                          Gaps.v10,
-                          VideoFlashButton(
-                            flashMode: _flashMode,
-                            targetMode: FlashMode.off,
-                            setFlashMode: _setFlashMode,
-                            icon: Icons.flash_off_rounded,
-                          ),
-                          Gaps.v10,
-                          VideoFlashButton(
-                            flashMode: _flashMode,
-                            targetMode: FlashMode.always,
-                            setFlashMode: _setFlashMode,
-                            icon: Icons.flash_on_rounded,
-                          ),
-                          Gaps.v10,
-                          VideoFlashButton(
-                            flashMode: _flashMode,
-                            targetMode: FlashMode.auto,
-                            setFlashMode: _setFlashMode,
-                            icon: Icons.flash_auto_rounded,
-                          ),
-                          Gaps.v10,
-                          VideoFlashButton(
-                            flashMode: _flashMode,
-                            targetMode: FlashMode.torch,
-                            setFlashMode: _setFlashMode,
-                            icon: Icons.flashlight_on_rounded,
-                          ),
-                        ],
-                      ),
-                    ),
-                  Positioned(
-                    bottom: Sizes.size40,
-                    width: MediaQuery.of(context).size.width,
-                    child: Row(
-                      children: [
-                        const Spacer(),
-                        GestureDetector(
-                          onVerticalDragUpdate: (details) =>
-                              onVerticalDragUpdate(details, context),
-                          onTapDown: _starRecording,
-                          onTapUp: (details) => _stopRecording(),
-                          child: ScaleTransition(
-                            scale: _buttonAnimation,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                SizedBox(
-                                  width: Sizes.size80 + Sizes.size14,
-                                  height: Sizes.size80 + Sizes.size14,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.red.shade400,
-                                    strokeWidth: Sizes.size6,
-                                    value: _progressAnimationController.value,
-                                  ),
-                                ),
-                                Container(
-                                  width: Sizes.size80,
-                                  height: Sizes.size80,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.red.shade400,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Container(
-                            alignment: Alignment.center,
-                            child: IconButton(
-                              onPressed: _onPickVideoPressed,
-                              icon: const FaIcon(
-                                FontAwesomeIcons.image,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        )
-                      ],
-                    ),
-                  )
-                ],
-              ),
+  Future<void> _pickVideoFromGallery() async {
+    final video = await ImagePicker().pickVideo(
+      source: ImageSource.gallery,
+    );
+    if (video == null) return;
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VideoPreviewScreen(
+          videoPreview: File(video.path),
+        ),
       ),
     );
   }

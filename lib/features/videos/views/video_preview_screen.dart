@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -10,13 +9,11 @@ import 'package:video_player/video_player.dart';
 import '../view_models/upload_video_view_model.dart';
 
 class VideoPreviewScreen extends ConsumerStatefulWidget {
-  final XFile video;
-  final bool isPicked;
+  final File videoPreview;
 
   const VideoPreviewScreen({
     super.key,
-    required this.video,
-    required this.isPicked,
+    required this.videoPreview,
   });
 
   @override
@@ -26,20 +23,24 @@ class VideoPreviewScreen extends ConsumerStatefulWidget {
 class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
   late final VideoPlayerController _videoPlayerController;
   bool _savedVideo = false;
+  bool _videoLoaded = false;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  double videoContainerRatio = 0.5;
 
   Future<void> _initVideo() async {
     _videoPlayerController = VideoPlayerController.file(
-      File(widget.video.path),
+      widget.videoPreview,
     );
 
     await _videoPlayerController.initialize();
     await _videoPlayerController.setLooping(true);
     await _videoPlayerController.setVolume(0);
-    // await _videoPlayerController.play();
+    await _videoPlayerController.play();
 
-    setState(() {});
+    setState(() {
+      _videoLoaded = true;
+    });
   }
 
   @override
@@ -58,24 +59,36 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
     if (_savedVideo) return;
 
     await GallerySaver.saveVideo(
-      widget.video.path,
+      widget.videoPreview.path,
       albumName: "Impetus test",
     );
 
-    _savedVideo = true;
-
-    setState(() {});
+    setState(() {
+      _savedVideo = true;
+    });
   }
 
   void _onUploadPressed() async {
     ref.read(uploadVideoProvider.notifier).uploadVideo(
-          File(widget.video.path),
+          widget.videoPreview,
           _titleController.text,
           _descriptionController.text,
           context,
         );
   }
 
+  double getScale() {
+    double videoRatio = _videoPlayerController.value.aspectRatio;
+
+    if (videoRatio < videoContainerRatio) {
+      return videoContainerRatio / videoRatio;
+    } else {
+      return videoRatio / videoContainerRatio;
+    }
+  }
+
+// the preview of the video is rotated somehow and is not showing correctly
+// not sure how to fix this issue
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -83,15 +96,12 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
       appBar: AppBar(
         title: const Text('Create petition'),
         actions: [
-          if (!widget.isPicked)
-            IconButton(
-              onPressed: _saveToGallery,
-              icon: FaIcon(
-                _savedVideo
-                    ? FontAwesomeIcons.check
-                    : FontAwesomeIcons.download,
-              ),
+          IconButton(
+            onPressed: _saveToGallery,
+            icon: FaIcon(
+              _savedVideo ? FontAwesomeIcons.check : FontAwesomeIcons.download,
             ),
+          ),
           IconButton(
             onPressed: ref.watch(uploadVideoProvider).isLoading
                 ? () {}
@@ -102,9 +112,21 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
           )
         ],
       ),
-      body: _videoPlayerController.value.isInitialized
+      body: _videoLoaded
           ? Stack(children: [
+              // AspectRatio(
+              //   aspectRatio: videoContainerRatio,
+              //   child: Stack(children: <Widget>[
+              //     Transform.scale(
+              //       scale: getScale(),
+              //       child: AspectRatio(
+              //         aspectRatio: _videoPlayerController.value.aspectRatio,
+              //         child:
               VideoPlayer(_videoPlayerController),
+              //       ),
+              //     ),
+              //   ]),
+              // ),
               Column(
                 children: [
                   TextFormField(
@@ -126,7 +148,7 @@ class VideoPreviewScreenState extends ConsumerState<VideoPreviewScreen> {
                 ],
               ),
             ])
-          : null,
+          : const CircularProgressIndicator(),
     );
   }
 }

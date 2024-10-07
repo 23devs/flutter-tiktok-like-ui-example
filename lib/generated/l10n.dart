@@ -128,7 +128,7 @@ class S {
     final String potatoString = potatoNumberFormat.format(potato);
 
     return Intl.message(
-      '$potatoString',
+      potatoString,
       name: 'likeCount',
       desc: 'Anything you want',
       args: [potatoString],
@@ -143,7 +143,7 @@ class S {
     final String potatoString = potatoNumberFormat.format(potato);
 
     return Intl.message(
-      '$potatoString',
+      potatoString,
       name: 'commentCount',
       desc: 'Anything you want',
       args: [potatoString],
